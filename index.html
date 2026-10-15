@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>STOCKOS V10.3</title>
+<style>body{font-family:Arial;padding:20px;background:#f5f5f5} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:15px;margin-top:15px} .card{background:white;padding:10px;border-radius:12px;box-shadow:0 2px 8px #0002} img{width:100%;height:180px;object-fit:cover;border-radius:8px;background:#eee} .precio{color:#0a0;font-weight:bold;font-size:18px} .stock{color:#00a}</style>
+</head><body>
+<h1>STOCKOS V10.3 - MBR DEMACHINE ✅</h1>
+<input id="q" placeholder="Buscar NIKE, ROSA, 38..."><button onclick="buscar()">Buscar</button> <button onclick="cargar()" style="background:#000;color:#fff;padding:8px 15px;border-radius:6px">CARGAR TODO EL INVENTARIO</button>
+<div id="total" style="margin:10px 0;font-weight:bold"></div>
+<div id="grid" class="grid"></div>
+<script>
+async function render(data){const g=document.getElementById('grid');g.innerHTML='';data.forEach(p=>{g.innerHTML+=`<div class=card><img src="${p.imagen}" onerror="this.src='https://via.placeholder.com/200'"><div><b>${p.nombre}</b></div><div>${p.marca} | ${p.color} | Talla ${p.talla}</div><div class=precio>$${Number(p.precio).toLocaleString()}</div><div class=stock>Stock: ${p.stock}</div><div style="font-size:11px;color:#888">${p.codigo}</div></div>`});document.getElementById('total').innerText='Total: '+data.length+' productos'}
+async function cargar(){document.getElementById('total').innerText='Cargando...';const r=await fetch('/api/inventario-completo');const j=await r.json();render(j.products||[])}
+async function buscar(){const q=document.getElementById('q').value;const r=await fetch('/api/search?q='+encodeURIComponent(q));const j=await r.json();render(j.products||[])}
+cargar();
+</script></body></html>
