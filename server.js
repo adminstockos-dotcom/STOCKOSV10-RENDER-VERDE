@@ -5,35 +5,20 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-const ESTOCK_URL = process.env.ESTOCK_URL || 'https://estock-mobile.demachine.co/';
 const ESTOCK_INSTANCIA = process.env.ESTOCK_INSTANCIA || 'MBR';
-const ESTOCK_USER = process.env.ESTOCK_USER || '';
-const ESTOCK_PASS = process.env.ESTOCK_PASS || '';
 const DEMACHINE_TOKEN = process.env.DEMACHINE_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIyNywiZXhwIjoxNzkyNjg5NDY1fQ.lmvtBtcohKBdcLKF0HwbZIfiCVi7b1__RWXAci6FVFg';
 const DEMACHINE_API = 'https://mbr.demachine.co/api/products/search';
 
-app.get('/api/status', (req,res)=>{
-  res.json({
-    estock_url: ESTOCK_URL,
-    instancia: ESTOCK_INSTANCIA,
-    user: ESTOCK_USER,
-    pass_configurado: !!ESTOCK_PASS,
-    token_configurado: !!DEMACHINE_TOKEN,
-    modo: 'MAXIMA_REAL_V10_CONECTADO'
-  })
-});
-
-app.get('/api/test', (req,res)=>{
-  res.json({status:'OK', mensaje:'V10 MAXIMA REAL CON DEMACHINE', instancia: ESTOCK_INSTANCIA})
-});
+app.get('/api/status', (req,res)=>{ res.json({instancia: ESTOCK_INSTANCIA, token: !!DEMACHINE_TOKEN, modo:'V10.1 FIX'}) });
+app.get('/api/test', (req,res)=>{ res.json({status:'OK'}) });
 
 app.post('/api/escanear', async (req,res)=>{
   try{
-    const {codigo} = req.body;
-    if(!codigo) return res.json({error:'codigo vacio'});
+    let {codigo} = req.body;
+    codigo = (codigo || '').toString().trim();
+    if(!codigo) codigo = 'a'; // si viene vacio trae todo
     
-    console.log(`Buscando REAL: ${codigo} en DEMACHINE MBR...`);
-
+    console.log(`Buscando REAL: [${codigo}]`);
     const r = await fetch(DEMACHINE_API, {
       method: 'POST',
       headers: {
@@ -41,83 +26,67 @@ app.post('/api/escanear', async (req,res)=>{
         'Authorization': `Bearer ${DEMACHINE_TOKEN}`,
         'Origin': 'https://estock-mobile.demachine.co'
       },
-      body: JSON.stringify({
-        str: codigo,
-        color: "",
-        talla: "",
-        error: ""
-      })
+      body: JSON.stringify({ str: codigo, color: "", talla: "", error: "" })
     });
-
-    const data = await r.json();
+    const text = await r.text();
+    let data;
+    try{ data = JSON.parse(text); } catch { data = { raw: text } }
     
     res.json({
       codigo: codigo,
-      instancia: ESTOCK_INSTANCIA,
-      fuente: 'DEMACHINE MBR REAL',
+      http_status: r.status,
       total_encontrados: data.data ? data.data.length : 0,
-      productos: data.data || [],
-      modo: 'MAXIMA_REAL_CONECTADO'
+      productos: data.data ? data.data.slice(0,100) : [],
+      full: data
     });
-
-  }catch(e){
-    console.error(e);
-    res.status(500).json({error:e.message})
-  }
+  }catch(e){ res.status(500).json({error:e.message}) }
 });
 
 app.get('/', (req,res)=>{
   res.send(`<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>STOCKOS V10</title>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STOCKOS V10.1</title>
 <style>
-body{font-family:Arial;background:#0f172a;color:#fff;padding:20px;margin:0}
-.card{background:#1e293b;padding:20px;border-radius:15px;max-width:500px;margin:auto;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.verde{color:#22c55e;font-weight:bold;font-size:26px;text-align:center;margin-bottom:10px}
-.sub{color:#94a3b8;text-align:center;margin-bottom:20px}
-input{width:100%;padding:16px;border-radius:10px;border:none;margin:10px 0;font-size:18px;box-sizing:border-box}
-button{width:100%;padding:16px;background:#22c55e;color:#000;font-weight:bold;border:none;border-radius:10px;font-size:19px;cursor:pointer}
-button:active{transform:scale(.98)}
-#res{margin-top:18px;background:#000;padding:15px;border-radius:10px;min-height:60px;white-space:pre-wrap;word-break:break-all;font-size:13px}
-.badge{background:#22c55e;color:#000;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold}
-.prod{background:#111827;margin:8px 0;padding:10px;border-radius:8px;border-left:4px solid #22c55e}
-</style>
-</head>
-<body>
+body{font-family:Arial;background:#0f172a;color:#fff;padding:15px;margin:0}
+.card{background:#1e293b;padding:20px;border-radius:15px;max-width:600px;margin:auto}
+.verde{color:#22c55e;font-weight:bold;font-size:24px;text-align:center}
+input{width:100%;padding:16px;border-radius:10px;border:2px solid #22c55e;margin:15px 0;font-size:18px;box-sizing:border-box;background:#0f172a;color:#fff}
+button{width:100%;padding:16px;background:#22c55e;color:#000;font-weight:bold;border:none;border-radius:10px;font-size:18px;cursor:pointer;margin:5px 0}
+#res{margin-top:15px;background:#000;padding:12px;border-radius:10px;min-height:300px;max-height:70vh;overflow:auto;font-size:12px;white-space:pre-wrap}
+.prod{background:#1e293b;margin:6px 0;padding:10px;border-radius:8px;border-left:4px solid #22c55e}
+</style></head><body>
 <div class="card">
-<div class="verde">STOCKOS V10 - MAXIMA REAL</div>
-<div class="sub">Instancia: ${ESTOCK_INSTANCIA} | MBR REAL<br><span class="badge">CONECTADO A DEMACHINE</span></div>
-<input id="codigo" placeholder="Escanea código EAN / REF / NIKE">
+<div class="verde">STOCKOS V10.1 FIX - MAXIMA REAL</div>
+<div style="text-align:center;color:#94a3b8;font-size:12px;margin:5px">MBR REAL CONECTADO - Si no escribes nada trae TODO</div>
+<input id="codigo" placeholder="Escribe NIKE, REF, o deja vacío y dale ESCANEAR" value="">
 <button onclick="escanear()">ESCANEAR MAXIMA REAL</button>
-<div id="res">Listo para escanear...</div>
+<button onclick="cargarTodo()" style="background:#fff;color:#000">CARGAR TODO EL INVENTARIO MBR</button>
+<div id="res">Listo. Escribe algo y dale al botón verde...</div>
 </div>
 <script>
 async function escanear(){
   let c=document.getElementById('codigo').value.trim();
-  if(!c) return alert('Pon código');
-  document.getElementById('res').innerHTML='Buscando '+c+' en DEMACHINE MBR REAL...';
+  let div=document.getElementById('res');
+  if(!c) c='a';
+  div.innerHTML='BUSCANDO ['+c+'] en DEMACHINE MBR REAL... espera 3 seg...';
   try{
     let r=await fetch('/api/escanear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:c})});
     let j=await r.json();
-    let html = '<b>Código:</b> '+j.codigo+'<br><b>Encontrados:</b> '+(j.total_encontrados||0)+'<br><br>';
+    console.log(j);
+    if(j.error){ div.innerHTML='ERROR: '+j.error; return; }
+    let html = '<b style=color:#22c55e>ENCONTRADOS: '+(j.total_encontrados||0)+' | HTTP: '+j.http_status+'</b><br><br>';
     if(j.productos && j.productos.length>0){
       j.productos.forEach(p=>{
-        html += '<div class=prod><b>'+ (p.name||p.reference||'') +'</b><br>Ref: '+(p.reference||'')+'<br>Color: '+(p.color||'')+' Talla: '+(p.size||'')+'<br>Stock: <b style=color:#22c55e>'+ (p.stock||0) +'</b> Precio: <b>$'+(p.price||p.pvp||'--')+'</b></div>';
+        html += '<div class=prod><b>'+ (p.reference||p.name||'SIN NOMBRE') +'</b><br><small>'+ (p.name||'') +'</small><br>Color: '+(p.color||'-')+' Talla: '+(p.size||p.talla||'-')+'<br>Stock: <b style=color:#22c55e>'+(p.stock ?? p.cantidad ?? 0)+'</b> | Bodega: '+(p.warehouse||p.bodega||'-')+'<br>Precio: $'+(p.price||p.pvp||p.precio||'--')+'</div>';
       });
     } else {
-      html += 'Sin resultados. JSON: '+JSON.stringify(j).substring(0,500);
+      html += 'Sin productos. Respuesta completa:<br>'+JSON.stringify(j.full||j).substring(0,2000);
     }
-    document.getElementById('res').innerHTML=html;
-  }catch(e){
-    document.getElementById('res').innerHTML='Error: '+e.message;
-  }
+    div.innerHTML=html;
+  }catch(e){ div.innerHTML='Error JS: '+e.message; }
 }
+function cargarTodo(){ document.getElementById('codigo').value='a'; escanear(); }
 document.getElementById('codigo').addEventListener('keypress',function(e){if(e.key==='Enter') escanear()});
-</script>
-</body>
-</html>`);
+</script></body></html>`);
 });
-
-app.listen(PORT, ()=>{console.log('STOCKOS V10 VERDE MAXIMA REAL CONECTADO en puerto '+PORT)});
+app.listen(PORT, ()=>{console.log('V10.1 FIX en '+PORT)});
