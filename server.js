@@ -1,56 +1,36 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const app = express();
-app.use(cors());
+app.use(require('cors')());
 app.use(express.json({limit:'50mb'}));
-app.use(express.static(path.join(__dirname,'public')));
 
-const DEMACHINE_BASE = 'https://mbr.demachine.co';
-let DEMACHINE_TOKEN = process.env.DEMACHINE_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIyNywiZXhwIjoxNzkyNjkyMzk4fQ.Aut8OGm_jdZN_EDHVJn2nEy1hNx6rJRcMmrSqn2RTIs';
+const BASE = 'https://mbr.demachine.co';
+const TOKEN = process.env.DEMACHINE_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIyNywiZXhwIjoxNzkyNjkyMzk4fQ.Aut8OGm_jdZN_EDHVJn2nEy1hNx6rJRcMmrSqn2RTIs';
 
-async function searchDemachine(query, page=1, perPage=50){
-  const url = `${DEMACHINE_BASE}/api/product/index?Page=${page}&maxPerPage=${perPage}&search=${encodeURIComponent(query)}&warehouse=BODEGA`;
-  const resp = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${DEMACHINE_TOKEN}`, 'Accept':'application/json' },
-  });
-  if(!resp.ok) throw new Error('HTTP '+resp.status);
-  const data = await resp.json();
-  let results = data?.data?.results || [];
-  const mapped = results.map(r => ({
-    nombre: r.product,
-    codigo: r.code,
-    marca: r.brand,
-    tipo: r.product_type,
-    color: r.color,
-    talla: r.size,
-    precio: r.price,
-    stock: r.quantity,
-    imagen: r.image_pre ? DEMACHINE_BASE + r.image_pre : (r.image ? DEMACHINE_BASE + r.image : ''),
-  }));
-  return { http: resp.status, total: data.data?.info?.count || mapped.length, pages: data.data?.info?.pages || 1, products: mapped };
+async function searchDemachine(q,page,perPage){
+  const url = `${BASE}/api/product/index?Page=${page}&maxPerPage=${perPage}&search=${encodeURIComponent(q)}&warehouse=BODEGA`;
+  const r = await fetch(url,{headers:{'Authorization':`Bearer ${TOKEN}`}});
+  const d = await r.json();
+  const results = d?.data?.results||[];
+  return results.map(x=>({nombre:x.product,codigo:x.code,marca:x.brand,tipo:x.product_type,color:x.color,talla:x.size,precio:x.price,stock:x.quantity,imagen:x.image_pre?BASE+x.image_pre:(x.image?BASE+x.image:'')}));
 }
 
-app.get('/api/search', async (req,res)=>{
-  try{
-    const q = req.query.q || '';
-    const result = await searchDemachine(q, 1, 50);
-    res.json(result);
-  }catch(e){ res.status(500).json({error:e.message}); }
+app.get('/api/search', async(req,res)=>{
+  try{ const prods = await searchDemachine(req.query.q||'',1,50); res.json({products:prods,total:prods.length}); }catch(e){res.status(500).json({error:e.message})}
+});
+app.get('/api/inventario-completo', async(req,res)=>{
+  try{ let all=[]; for(let p=1;p<=5;p++){ const prods=await searchDemachine('',p,100); all=all.concat(prods); if(prods.length<100) break; } res.json({products:all,total:all.length}); }catch(e){res.status(500).json({error:e.message})}
 });
 
-app.get('/api/inventario-completo', async (req,res)=>{
-  try{
-    let all = [];
-    for(let p=1;p<=5;p++){
-      const r = await searchDemachine('', p, 100);
-      all = all.concat(r.products);
-      if(r.products.length < 100) break;
-    }
-    res.json({total: all.length, products: all});
-  }catch(e){ res.status(500).json({error:e.message}); }
+// FRONTEND - SERVIR INDEX
+app.use(express.static(__dirname));
+app.get('/', (req,res)=> res.sendFile(path.join(__dirname,'index.html')));
+app.get('*', (req,res)=> {
+  const indexPath = path.join(__dirname,'index.html');
+  if(fs.existsSync(indexPath)) return res.sendFile(indexPath);
+  res.send(`<h1>STOCKOS V10.3 LIVE</h1><p>index.html no encontrado en ${__dirname}</p><p>Archivos: ${fs.readdirSync(__dirname).join(', ')}</p>`);
 });
 
-app.get('*', (req,res)=> res.sendFile(path.join(__dirname,'public','index.html')));
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, ()=> console.log('V10.3 LIVE FIX'));
+const PORT = process.env.PORT||10000;
+app.listen(PORT,()=>console.log('LIVE V10.3 FINAL'));
